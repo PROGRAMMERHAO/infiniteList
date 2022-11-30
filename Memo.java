@@ -1,70 +1,89 @@
 package cs2030s.fp;
 
 /**
- * A container class the encapsulate a
- * lazily-evaluated-and-memoized value.
- *
- * @author Adi Yoga S. Prabawa
- * @version CS2030S AY 22/23 Sem 1
+ * the Memo class that memoize the 
+ * value.
  */
-public class Memo<T> implements Immutatorable<T> {
-  
-  private Constant<? extends T> com;
-  private Actually<T> val;
-  
-  private Memo(Actually<T> val, Constant<T> com) {
-    this.com = com;
-    this.val = val;
+public class Memo<T> extends Lazy<T> {
+  /**
+   * the value of Acutally type.
+   */
+  private Actually<T> value;
+
+  /**
+   * the constructor of Memo.
+   *
+   * @param value the value passed in
+   to lazy and actually
+   */
+  protected Memo(T value) {
+    super(() -> value);
+    this.value = Actually.<T>ok(value);
   }
+  protected Memo(Constant<? extends T> value) {
+    super(value);
+    this.value = Actually.<T>err(null);
+  }
+
+  /**
+   * the factory method of Memo.
+   *
+   * @param <T> the generic input type
+   *
+   * @param v the value passed to Memo
+   *
+   * @return a Memo that contains the 
+   value v in its Actually value
+   */
+  public static <T> Memo<T> from(T v) {
+    return new Memo<T>(v); 
+  }
+
   
-  public static <T> Memo<T> from(T val) {
-    return new Memo<T>(Actually.ok(val), null);
+  public static <T> Memo<T> from(Constant<? extends T> c) {
+    return new Memo<T>(c); 
   }
-  public static <T> Memo<T> from(Constant<T> com) {
-    return new Memo<T>(Actually.err(), com);
+
+  @Override 
+  public <R> Memo<R> transform(Immutator<? extends R, ? super T> immute) {
+    return Memo.<R>from(() -> immute.invoke(this.get()));
   }
-  
-  public T get() {
-    this.eval();
-    return this.val.unless(null);
-  }
-  private void eval() {
-    if (this.com != null) {
-      this.val = Actually.<T>ok(this.com.init());
-      this.com = null;
-    }
-  }
-  
+
   @Override
-  public <R> Memo<R> transform(Immutator<? extends R, ? super T> f) {
-    return Memo.<R>from(() -> f.invoke(this.get()));
+  public <R> Memo<R> next(Immutator<? extends Lazy<? extends R>, ? super T> input) {
+    return Memo.<R>from(() -> input.invoke(this.get()).get());
   }
-  public <R> Memo<R> next(Immutator<? extends Memo<? extends R>, ? super T> f) {
-    return Memo.<R>from(() -> f.invoke(this.get()).get());
+
+  public <R, S> Memo<R> combine(Memo<? extends S> memo,  
+      Combiner<? extends R, ? super T, ? super S> combiner) {
+    return Memo.<R>from(() -> combiner.combine(this.get(), memo.get()));
   }
-  public <S, R> Memo<R> combine(Memo<S> snd, Combiner<? extends R, ? super T, ? super S> f) {
-    return Memo.<R>from(() -> f.combine(this.get(), snd.get()));
+
+  @Override
+  public T get() {
+    T toGet = this.value.except(() -> super.get());
+    this.value = Actually.<T>ok(toGet);
+    return toGet;
   }
-  
+
   @Override
   public String toString() {
-    if (this.com != null) {
-      return "?";
-    }
-    return this.get().toString();
+    return this.value.next(temp -> Actually.ok(String.valueOf(temp))).unless("?");
   }
-  
   @Override
-  public boolean equals(Object obj) {
-    if (obj == this) {
+  public boolean equals(Object o) {
+    if (o == this) {
       return true;
     }
-    if (!(obj instanceof Memo<?>)) {
+    if (o instanceof Memo<?>) {
+      Memo<?> temp = (Memo<?>) o;
+      if (temp.get().equals(this.get())) {
+        return true;
+      }
       return false;
     }
-    Memo<?> that = (Memo<?>) obj;
-    that.eval();
-    this.eval();
-    return this.val.equals(that.val);
+    return false;
   }
 }
+
+ 

@@ -1,89 +1,161 @@
-package cs2030s.fp;
-
 /**
- * A container class the encapsulate
- * a value that may or may not be an error.
+ * an abstract class which have
+ * two nested classes Success
+ * and Failure.
  *
- * @author Adi Yoga S. Prabawa
- * @version CS2030S AY 22/23 Sem 1
+ * @author HAOZEYU
  */
-public class Actually<T> implements Immutatorable<T> {
-  private T val;
-  private Exception err;
-  
-  private Actually(T val, Exception err) {
-    this.val = val;
-    this.err = err;
-  }
-  
-  public static <T> Actually<T> err() {
-    // A common error for ease of use
-    return new Actually<T>((T) null, new Exception("err"));
-  }
-  public static <T> Actually<T> err(Exception err) {
-    return new Actually<T>((T) null, err);
-  }
-  public static <T> Actually<T> ok(T val) {
-    return new Actually<T>(val, null);
-  }
-  
-  public T except(Constant<? extends T> com) {
-    return this.err == null ? this.val : com.init();
-  }
-  public <U extends T> T unless(U val) {
-    return this.err == null ? this.val : val;
-  }
-  public void finish(Action<? super T> act) {
-    if (this.err == null) {
-      act.call(this.val);
-    }
-  }
+
+package cs2030s.fp;
+public abstract class Actually<T> implements Immutatorable<T>, Actionable<T> {
+  private T input;
+  public abstract T except(Constant<? extends T> value); 
+  public abstract T unwrap();
+  public abstract void finish(Action<? super T> value);
+  public abstract <R extends T> T unless(R value);
+  public abstract <R> Actually<R> next(Immutator<Actually<R>, ? super T> value);
   @Override
-  public <R> Actually<R> transform(Immutator<? extends R, ? super T> f) {
-    return this.err == null ? Actually.<R>ok(f.invoke(this.val)) : Actually.<R>err(this.err);
-  }
-  public <R> Actually<? extends R> next(Immutator<? extends Actually<? extends R>, ? super T> f) {
-    if (this.err != null) {
-      return Actually.err(this.err);
-    } else {
-      return f.invoke(this.val);
+  public abstract <R> Actually<R> transform(Immutator<? extends R, ? super T> value);
+  private static final class Success<T> extends Actually<T> {
+    private T input;
+    protected Success(T input) {
+      this.input = input;
     }
-  }
-  public Actually<T> check(Immutator<Boolean, ? super T> pred) {
-    if (this.err != null) {
-      return Actually.err(this.err);
+    @Override
+    public T unwrap() {
+      return this.input;
     }
-    Boolean chk = pred.invoke(this.val);
-    if (chk) {
-      return this;
+    @Override
+    public T except(Constant<? extends T> value) {
+      return this.input;
     }
-    return Actually.err();
-  }
-  
-  @Override
-  public String toString() {
-    if (this.err != null) {
-      return "<>";
+    @Override 
+    public void finish(Action<? super T> value) {
+      value.call(this.input);
     }
-    return "<" + this.val + ">";
-  }
-  
-  @Override
-  public boolean equals(Object obj) {
-    if (obj == this) {
-      return true;
+    @Override
+    public void act(Action<? super T> value) {
+      value.call(this.input);
     }
-    if (!(obj instanceof Actually<?>)) {
+    @Override
+    public <R> Actually<R> next(Immutator<? extends Actually<? extends R>, ? super T> value) {
+      try {
+        return value.invoke(this.input);
+      } catch (Exception e) {
+        return Actually.err(e);
+      }
+    }
+    @Override
+    public <R extends T> T unless(R value) {
+
+      return this.input;
+    }
+    @Override
+    public <R> Actually<R> transform(Immutator<? extends R, ? super T> value) {
+      try { 
+        return Actually.ok(value.invoke(this.input));
+      } catch (Exception e) {
+        return Actually.err(e);
+      }
+    }
+    @Override 
+    public String toString() {
+      if (this.input == null) {
+        return "<null>";
+      }
+      return "<" + this.input.toString() + ">";
+
+    }
+    @Override
+    public boolean equals(Object toCheck) {
+
+      if (toCheck == this) {
+        return true;
+      }
+      if (toCheck instanceof Success<?>) {
+        Success<?> temp = (Success<?>) toCheck;
+        if (temp.input == this.input) {
+          return true;
+        }
+        if (this.input == null || temp.input == null) {
+          return false;
+        }
+        return this.input.equals(temp.input);
+      }
       return false;
     }
-    Actually<?> that = (Actually<?>) obj;
-    if (this.err != null) {
-      // for simplicity, all err is the same
-      return that.err != null;
+
+  }
+
+  private static final class Failure extends Actually<Object> {
+    private Exception input;
+    protected Failure(Exception input) {
+      this.input = input;
     }
-    if (this.val == null) {
-      return that.val == null;
+
+    @Override 
+    public String toString() {
+      return "[" + this.input.getClass().getName().toString() + "] " + 
+        this.input.getMessage();
     }
-    return this.val.equals(that.val);
+    @Override
+    public Exception unwrap() {
+      return this.input;
+    }
+    @Override
+    public Object except(Constant<?> value) {
+      return value.init();
+    }
+    @Override
+    public void finish(Action<? super Object> input) {
+    }
+    @Override
+    public void act(Action<? super Object> input) {
+    }
+    @Override
+    public <R extends Object> Object unless(R value) {
+      return value;
+    }
+
+    @Override 
+    public <R> Actually<R> transform(Immutator<? extends R, ? super Object> value) {
+      return Actually.err(this.input);
+    }
+
+    @Override
+    public <R> Actually<R> next(Immutator<Actually<R>,
+        ? super Object> value) {
+      return Actually.err(this.input);
+    }
+    @Override
+    public boolean equals(Object toCheck) {
+      if (toCheck == this) {
+        return true;
+      }
+      if (toCheck instanceof Failure) {
+        Failure temp = (Failure) toCheck;
+        if (temp.input == this.input) {
+          return true;
+        } else if (this.input == null || temp.input == null) {
+          return false;
+        } else if (this.input.getMessage() == null || temp.input.getMessage() == null) {
+          return false;
+        } else {
+          return this.input.getMessage().equals(temp.input.getMessage());
+        }
+      }
+      return false;
+    }
+  }
+  public static <T> Actually<T> ok(T res) {
+    @SuppressWarnings("unchecked")
+    Actually<T> temp = (Actually<T>) new Success<>(res);
+    return temp;
+  }
+  public static <T> Actually<T> err(Exception exception) {
+  
+    @SuppressWarnings("unchecked")
+    Actually<T> temp = (Actually<T>) new Failure(exception);
+    return temp;
   }
 }
